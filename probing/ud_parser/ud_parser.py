@@ -9,7 +9,8 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 import numpy as np
 from conllu import parse, parse_tree
 from conllu.models import Token, TokenTree
-from nltk.tokenize import wordpunct_tokenize
+# from nltk.tokenize import wordpunct_tokenize
+from nltk.tokenize import word_tokenize
 from sklearn.model_selection import train_test_split
 from transformers.utils import logging
 
@@ -61,7 +62,7 @@ class ConlluUDParser:
              result_path: a filename that will be generated
              partition_sets: the data split into 3 parts
         """
-        result_path = Path(Path(save_path_dir).resolve(), f"{language}_{category}.csv")
+        result_path = Path(Path(save_path_dir).resolve(), f"{language}_{category}.txt")
         with open(result_path, "w", encoding="utf-8") as newf:
             my_writer = csv.writer(newf, delimiter="\t", lineterminator="\n")
             for part in partition_sets:
@@ -116,7 +117,7 @@ class ConlluUDParser:
         probing_data = defaultdict(list)
         for token_tree in token_trees:
             if token_tree.metadata:
-                s_text = " ".join(wordpunct_tokenize(token_tree.metadata["text"]))
+                s_text = " ".join(word_tokenize(token_tree.metadata["text"]))
                 root = token_tree.token
                 category_token = self.find_category_token(
                     category, root, token_tree.children

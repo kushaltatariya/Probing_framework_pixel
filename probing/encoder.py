@@ -19,6 +19,37 @@ from probing.data_former import EncodedVectorFormer, TokenizedVectorFormer
 from probing.types import AggregationType
 from probing.utils import clear_memory
 
+### pixel imports ###
+from pixel import (
+    AutoConfig,
+    AutoModelForSequenceClassification,
+    Modality,
+    PangoCairoTextRenderer,
+    PIXELConfig,
+    ViTModel,
+    PIXELTrainer,
+    PIXELTrainingArguments,
+    PoolingMode,
+    PyGameTextRenderer,
+    get_attention_mask,
+    get_transforms,
+    glue_strip_spaces,
+    log_sequence_classification_predictions,
+    resize_model_embeddings,
+)
+from dataclasses import dataclass, field
+from transformers import (
+    AutoTokenizer,
+    DataCollatorWithPadding,
+    EarlyStoppingCallback,
+    EvalPrediction,
+    HfArgumentParser,
+    PreTrainedTokenizerFast,
+    default_data_collator,
+    set_seed, PretrainedConfig,
+)
+
+
 logging.set_verbosity_warning()
 logger = logging.get_logger("probing")
 
@@ -27,6 +58,7 @@ class TransformersLoader:
     def __init__(
         self,
         model_name: Optional[str] = None,
+        fallback_fonts_dir: Optional[str] = None,
         device: Optional[str] = None,
         truncation: bool = False,
         padding: str = "longest",
@@ -37,7 +69,7 @@ class TransformersLoader:
         output_attentions: bool = True,
     ):
         self.config = (
-            AutoConfig.from_pretrained(
+            PIXELConfig.from_pretrained(
                 model_name,
                 output_hidden_states=output_hidden_states,
                 output_attentions=output_attentions,
@@ -46,12 +78,13 @@ class TransformersLoader:
             else None
         )
         self.model = (
-            AutoModel.from_pretrained(model_name, config=self.config)
+            ViTModel.from_pretrained(model_name, config=self.config)
             if model_name
             else None
         )
-        self.tokenizer = (
-            AutoTokenizer.from_pretrained(model_name, config=self.config)
+        self.renderer_cls = PangoCairoTextRenderer
+        self.processor = (
+            self.renderer_cls.from_pretrained(model_name, rgb=False, fallback_fonts_dir=fallback_fonts_dir)
             if model_name
             else None
         )
@@ -63,8 +96,8 @@ class TransformersLoader:
         self.return_dict = return_dict
         self.device = device
 
-        if self.tokenizer:
-            self.Caching = Cacher(tokenizer=self.tokenizer, cache={})
+        if self.processor:
+            self.Caching = Cacher(tokenizer=self.processor, cache={})
         else:
             self.Caching = None  # type: ignore
 
@@ -95,7 +128,7 @@ class TransformersLoader:
             self.device = None
 
     def tokenize_text(self, text: Union[str, List[str]]) -> torch.Tensor:
-        tokenized_text = self.tokenizer(
+        tokenized_text = self.processor(
             text,
             padding=self.padding,
             return_tensors=self.return_tensors,
